@@ -31,7 +31,7 @@ logic data;
 logic addr;
 logic rw;
 
-M6052 m6052 (
+M6502 m6502 (
     i_clk( clk ),
     i_rst( rst ),
     i_nmi( nmi ),
