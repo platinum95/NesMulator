@@ -88,6 +88,41 @@ reg[ 7:0 ] r_WORKINGH = 0;
 reg r_indexerCarry_nxt = 0;
 reg r_indexerCarry = 0;
 
+/*****************************
+* Main FSM states
+******************************/
+enum {
+    Fetch,
+    ReadOperand1,
+    ReadOperand2,
+    ReadMem1,
+    ReadMem2,
+    ReadIndirect1,
+    ReadIndirect2,
+
+    // New states to replace the old ones
+    Read1,
+    Read2,
+    WriteBack,
+    WriteResult,
+
+    // Extra states
+    StackRead,
+    StackWrite,
+    BrkAux1, // Fetch PCL from $FFFE
+    BrkAux2, // Fetch PCH from $FFFF
+    JsrAux, // Fetch PCH from PC
+    PcInc,
+    Jam
+} r_mainState = Fetch, r_mainState_nxt = Fetch;
+
+logic[ 1:0 ] r_stackStateCounter = 0;
+logic[ 1:0 ] r_stackStateCounter_nxt = 0;
+
+
+/******************************
+* Addressing modes
+******************************/
 enum {
     Implied,
     Immediate,
@@ -683,6 +718,7 @@ enum {
 // Read/write signal logic
 always_comb
 begin
+    r_readWrite = ReadFlag;
     case ( r_mainState )
         Fetch,
         ReadOperand1,
@@ -750,7 +786,14 @@ begin
     r_PC_nxt = r_PC;
     r_OPCODE_nxt = r_OPCODE;
     r_dataOut = 8'hZZ;
-
+    r_OPERAND1_nxt = r_OPERAND1;
+    r_OPERAND2_nxt = r_OPERAND2;
+    r_EFFECTIVEL_ADDR_nxt = r_EFFECTIVEL_ADDR;
+    r_EFFECTIVEH_ADDR_nxt = r_EFFECTIVEH_ADDR;
+    r_INDIRECTL_addr_nxt = r_INDIRECTL_addr;
+    r_WORKINGL_nxt = r_WORKINGL;
+    r_WORKINGH_nxt = r_WORKINGH;
+    
     r_indexerCarry_nxt = 0;
 
     if ( r_mainState == Fetch )
@@ -1124,7 +1167,7 @@ begin
 
                                 IndexedIndirect:
                                 begin
-                                    r_INDIRECTL_addr = io_data + r_X;
+                                    r_INDIRECTL_addr_nxt = io_data + r_X;
                                 end
 
                                 IndirectIndexed:
@@ -1306,38 +1349,12 @@ end
 /************************
 * Main state logic
 *************************/
-enum {
-    Fetch,
-    ReadOperand1,
-    ReadOperand2,
-    ReadMem1,
-    ReadMem2,
-    ReadIndirect1,
-    ReadIndirect2,
-
-    // New states to replace the old ones
-    Read1,
-    Read2,
-    WriteBack,
-    WriteResult,
-
-    // Extra states
-    StackRead,
-    StackWrite,
-    BrkAux1, // Fetch PCL from $FFFE
-    BrkAux2, // Fetch PCH from $FFFF
-    JsrAux, // Fetch PCH from PC
-    PcInc,
-    Jam
-} r_mainState = Fetch, r_mainState_nxt = Fetch;
-
-logic[ 1:0 ] r_stackStateCounter = 0;
-logic[ 1:0 ] r_stackStateCounter_nxt = 0;
 
 // Output address logic
 // TODO - this won't hold the address
 always_comb
 begin
+    o_addr = 0;
     case ( r_mainState )
         Fetch,
         ReadOperand1,

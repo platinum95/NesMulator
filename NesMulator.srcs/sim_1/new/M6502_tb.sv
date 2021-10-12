@@ -27,18 +27,18 @@ logic clk;
 logic rst;
 logic nmi;
 logic irq;
-logic data;
-logic addr;
+wire[ 7:0 ] data;
+logic[ 15:0 ] addr;
 logic rw;
 
 M6502 m6502 (
-    i_clk( clk ),
-    i_rst( rst ),
-    i_nmi( nmi ),
-    i_irq( irq ),
-    io_data( data ),
-    o_addr( addr ),
-    i_rw( rw )
+    .i_clk( clk ),
+    .i_rst( rst ),
+    .i_nmi( nmi ),
+    .i_irq( irq ),
+    .io_data( data ),
+    .o_addr( addr ),
+    .i_rw( rw )
 );
 
 initial
