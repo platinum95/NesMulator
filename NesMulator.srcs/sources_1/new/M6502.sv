@@ -11,7 +11,7 @@ module M6502(
     input   wire            i_irq,
     inout   logic[ 7:0 ]    io_data,
     output  reg[ 15:0 ]    o_addr,
-    output  wire            i_rw
+    output  wire            o_rw
 );
 
 `define CARRY_BIT 0
@@ -509,6 +509,10 @@ begin
             begin
                 r_operation = NOP;
             end
+            else if ( w_a == 7 && w_b == 2 )
+            begin
+                r_operation = NOP;
+            end
             else
             begin
                 case( w_a )
@@ -715,6 +719,7 @@ enum {
     WriteFlag = 1
 } r_readWrite;
 
+assign o_rw = r_readWrite;
 // Read/write signal logic
 always_comb
 begin
@@ -1110,6 +1115,14 @@ begin
                     begin
                         // TODO - error
                     end
+                endcase
+            end
+
+            JMP:
+            begin
+                case ( r_mainState )
+                    ReadOperand1: r_OPERAND1_nxt = io_data;
+                    ReadOperand2: r_PC_nxt = { io_data, r_OPERAND1 };
                 endcase
             end
 
@@ -1552,7 +1565,11 @@ begin
         ReadOperand2:
         begin
             case( r_addressingMode )
-                Absolute,
+                Absolute:
+                begin
+                    if ( r_operation == JMP ) r_mainState_nxt = Fetch;
+                    else r_mainState_nxt = Read1;
+                end
                 AbsoluteIndexed:
                 begin
                     r_mainState_nxt = Read1;
@@ -1906,33 +1923,47 @@ always_ff @( posedge i_clk, negedge i_rst )
 begin
     if ( ~i_rst )
     begin
-        r_mainState <= Fetch;
+        r_mainState         <= Fetch;
         r_stackStateCounter <= 2'b0;
-        r_OPCODE <= NOP;
+        r_OPCODE            <= NOP;
 
-        r_OPERAND1 <= 0;
-        r_OPERAND2 <= 0;
-        r_EFFECTIVEL_ADDR <= 0;
-        r_EFFECTIVEH_ADDR <= 0;
-        r_INDIRECTL_addr <= 0;
-        r_WORKINGL <= 0;
-        r_WORKINGH <= 0;
-        r_indexerCarry <= 0;
+        r_A                 <= 8'h00;
+        r_X                 <= 8'h00;
+        r_Y                 <= 8'h00;
+        r_S                 <= 8'h00;
+        r_P                 <= 8'h00;
+        r_PC                <= 8'h00;
+
+        r_OPERAND1          <= 0;
+        r_OPERAND2          <= 0;
+        r_EFFECTIVEL_ADDR   <= 0;
+        r_EFFECTIVEH_ADDR   <= 0;
+        r_INDIRECTL_addr    <= 0;
+        r_WORKINGL          <= 0;
+        r_WORKINGH          <= 0;
+        r_indexerCarry      <= 0;
     end
     else
     begin
-        r_mainState <= r_mainState_nxt;
+        r_mainState         <= r_mainState_nxt;
         r_stackStateCounter <= r_stackStateCounter_nxt;
-        r_OPCODE <= r_OPCODE_nxt;
+        r_OPCODE            <= r_OPCODE_nxt;
 
-        r_OPERAND1 <= r_OPERAND1_nxt;
-        r_OPERAND2 <= r_OPERAND2_nxt;
-        r_EFFECTIVEL_ADDR <= r_EFFECTIVEL_ADDR_nxt;
-        r_EFFECTIVEH_ADDR <= r_EFFECTIVEH_ADDR_nxt;
-        r_INDIRECTL_addr <= r_INDIRECTL_addr_nxt;
-        r_WORKINGL <= r_WORKINGL_nxt;
-        r_WORKINGH <= r_WORKINGH_nxt;
-        r_indexerCarry <= r_indexerCarry_nxt;
+        r_A                 <= r_A_nxt;
+        r_X                 <= r_X_nxt;
+        r_Y                 <= r_Y_nxt;
+        r_S                 <= r_S_nxt;
+        r_P                 <= r_P_nxt;
+        r_PC                <= r_PC_nxt;
+
+        r_OPERAND1          <= r_OPERAND1_nxt;
+        r_OPERAND2          <= r_OPERAND2_nxt;
+        r_EFFECTIVEL_ADDR   <= r_EFFECTIVEL_ADDR_nxt;
+        r_EFFECTIVEH_ADDR   <= r_EFFECTIVEH_ADDR_nxt;
+        r_INDIRECTL_addr    <= r_INDIRECTL_addr_nxt;
+        r_WORKINGL          <= r_WORKINGL_nxt;
+        r_WORKINGH          <= r_WORKINGH_nxt;
+        r_indexerCarry      <= r_indexerCarry_nxt;
     end
 end
 

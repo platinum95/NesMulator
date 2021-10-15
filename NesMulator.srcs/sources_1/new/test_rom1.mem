@@ -1,0 +1,4 @@
+EA          // NOP
+EA          // NOP
+EA          // NOP
+4C FF FF    // JMP $FFFF
