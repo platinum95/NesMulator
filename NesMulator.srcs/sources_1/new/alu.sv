@@ -1,30 +1,8 @@
 `timescale 1ns / 1ps
-// TODO - move to common file
-typedef enum 
-{
-    ADC,
-    INC,
-    DEC,
-    SBC,
-    CMP,
-    AND,
-    OR,
-    EOR,
-    ASL,
-    ROL,
-    ROR,
-    LSR
-} AluOperation;
 
-`define CARRY_BIT 0
-`define ZERO_BIT 1
-`define INTERRUPT_BIT 2
-`define DECIMAL_BIT 3
-`define BREAK_BIT 4
-// Unused bit
-`define OVERFLOW_BIT 6
-`define NEGATIVE_BIT 7
+`include "M6502Defs.sv"
 
+import M6502Defs::*;
 
 module alu(
     input AluOperation i_operation,
@@ -35,100 +13,62 @@ module alu(
     output logic[ 7:0 ] o_status
     );
 
+wire[ 7:0 ] l_adderB = ( i_operation == AluOperation_ADC ) ? i_b : ~i_b;
+wire w_c6;
+wire[ 6:0 ] l_addLower;
+assign { w_c6, l_addLower } = i_a[ 6:0 ] + l_adderB[ 6:0 ] + ( ( i_operation == AluOperation_CMP ) ? 1'b1 : i_status[ CARRY_BIT ] );
+
+
 always_comb
 begin
     o_status = i_status;
     case( i_operation )
-        ADC:
+        AluOperation_ADC,
+        AluOperation_SBC,
+        AluOperation_CMP:
         begin
-            // TODO - possibly use { o_status[ `CARRY_BIT ], o_result } = i_a + i_b + i_status[ `CARRY_BIT ];
-            o_result = i_a + i_b + i_status[ `CARRY_BIT ];
-            o_status[ `CARRY_BIT ] = ( i_a[ 7 ] | i_b[ 7 ] ) & ~o_result[ 7 ];
-            o_status[ `ZERO_BIT ] = ( o_result == 0 );
-            o_status[ `NEGATIVE_BIT ] = o_result[ 7 ];
-            o_status[ `OVERFLOW_BIT ] = ~( i_a[ 7 ] ^ i_b[ 7 ] ) & ( i_a[ 7 ] ^ o_result[ 7 ] );
+            o_result[ 6:0 ] = l_addLower;
+            { o_status[ CARRY_BIT ], o_result[ 7 ] } = i_a[ 7 ] + l_adderB[ 7 ] + w_c6;
+
+            if ( i_operation != AluOperation_CMP )
+            begin
+                o_status[ OVERFLOW_BIT ] = ( ~i_a[ 7 ] & ~l_adderB[ 7 ] & w_c6 ) | ( i_a[ 7 ] & l_adderB[ 7 ] & ~w_c6 );
+            end
         end
 
-        INC:
-        begin
-            o_result = i_a + 1;
-            o_status[ `ZERO_BIT ] = ( o_result == 0 );
-            o_status[ `NEGATIVE_BIT ] = o_result[ 7 ];
-        end
+        AluOperation_INC: o_result = i_a + 1;
+        AluOperation_DEC: o_result = i_a - 1;
+        AluOperation_AND: o_result = i_a & i_b;
+        AluOperation_OR:  o_result = i_a | i_b;
+        AluOperation_EOR: o_result = i_a ^ i_b;
 
-        DEC:
-        begin
-            o_result = i_a - 1;
-            o_status[ `ZERO_BIT ] = ( o_result == 0 );
-            o_status[ `NEGATIVE_BIT ] = o_result[ 7 ];
-        end
-
-        SBC:
-        begin
-            
-        end
-
-        CMP:
-        begin
-            
-        end
-
-        AND:
-        begin
-            o_result = i_a & i_b;
-            o_status[ `ZERO_BIT ] = ( o_result == 0 );
-            o_status[ `NEGATIVE_BIT ] = o_result[ 7 ];
-        end
-
-        OR:
-        begin
-            o_result = i_a | i_b;
-            o_status[ `ZERO_BIT ] = ( o_result == 0 );
-            o_status[ `NEGATIVE_BIT ] = o_result[ 7 ];
-        end
-
-        EOR:
-        begin
-            o_result = i_a ^ i_b;
-            o_status[ `ZERO_BIT ] = ( o_result == 0 );
-            o_status[ `NEGATIVE_BIT ] = o_result[ 7 ];
-        end
-
-        ASL:
+        AluOperation_ASL,
+        AluOperation_ROL:
         begin
             o_result = i_a << 1;
-            o_status[ `CARRY_BIT ] = ( i_a[ 7 ] );
-            o_status[ `ZERO_BIT ] = ( o_result == 0 );
-            o_status[ `NEGATIVE_BIT ] = o_result[ 7 ];
+            if ( i_operation == AluOperation_ROL )
+            begin
+                o_result[ 0 ] = i_status[ CARRY_BIT ];
+            end
+
+            o_status[ CARRY_BIT ] = ( i_a[ 7 ] );
         end
 
-        ROL:
-        begin
-            o_result = i_a << 1;
-            o_result[ 0 ] = i_status[ `CARRY_BIT ];
-            o_status[ `CARRY_BIT ] = ( i_a[ 7 ] );
-            o_status[ `ZERO_BIT ] = ( o_result == 0 );
-            o_status[ `NEGATIVE_BIT ] = o_result[ 7 ];
-        end
-
-        ROR:
+        AluOperation_LSR,
+        AluOperation_ROR:
         begin
             o_result = i_a >> 1;
-            o_result[ 7 ] = i_status[ `CARRY_BIT ];
-            o_status[ `CARRY_BIT ] = ( i_a[ 0 ] );
-            o_status[ `ZERO_BIT ] = ( o_result == 0 );
-            o_status[ `NEGATIVE_BIT ] = o_result[ 7 ];
-        end
+            if ( i_operation == AluOperation_ROR )
+            begin
+                o_result[ 7 ] = i_status[ CARRY_BIT ];
+            end
+            o_status[ CARRY_BIT ] = ( i_a[ 0 ] );
 
-        LSR:
-        begin
-            o_result = i_a >> 1;
-            o_status[ `CARRY_BIT ] = ( i_a[ 0 ] );
-            o_status[ `ZERO_BIT ] = ( o_result == 0 );
-            o_status[ `NEGATIVE_BIT ] = o_result[ 7 ];
         end
-        
     endcase
+
+    o_status[ ZERO_BIT ] = ( o_result == 0 );
+    o_status[ NEGATIVE_BIT ] = o_result[ 7 ];
 end
 
 endmodule

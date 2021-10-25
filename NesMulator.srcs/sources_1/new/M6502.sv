@@ -1,8 +1,7 @@
 `timescale 1ns / 1ps
 
-`define DECL_SM_REG( NAME, WIDTH, DEFAULT ) \
-    reg[ WIDTH-1:0 ] r_NAME_nxt = DEFAULT; \
-    reg[ WIDTH-1:0 ] r_NAME = DEFAULT;
+import M6502Defs::AluOperation;
+import M6502Defs::StatusBits;
 
 module M6502(
     input   wire            i_clk,
@@ -13,15 +12,6 @@ module M6502(
     output  reg[ 15:0 ]    o_addr,
     output  wire            o_rw
 );
-
-`define CARRY_BIT 0
-`define ZERO_BIT 1
-`define INTERRUPT_BIT 2
-`define DECIMAL_BIT 3
-`define BREAK_BIT 4
-// Unused bit
-`define OVERFLOW_BIT 6
-`define NEGATIVE_BIT 7
 
 /*********************
 * Work registers
@@ -764,14 +754,14 @@ always_comb
 begin
     l_shouldBranch = 0;
     case( r_operation )
-        BPL: l_shouldBranch = ( r_P[ `NEGATIVE_BIT ] == 0 );
-        BMI: l_shouldBranch = ( r_P[ `NEGATIVE_BIT ] == 1 );
-        BVC: l_shouldBranch = ( r_P[ `OVERFLOW_BIT ] == 0 );
-        BVS: l_shouldBranch = ( r_P[ `OVERFLOW_BIT ] == 1 );
-        BCC: l_shouldBranch = ( r_P[ `CARRY_BIT ] == 0 );
-        BCS: l_shouldBranch = ( r_P[ `CARRY_BIT ] == 1 );
-        BNE: l_shouldBranch = ( r_P[ `ZERO_BIT ] == 0 );
-        BEQ: l_shouldBranch = ( r_P[ `ZERO_BIT ] == 1 );
+        BPL: l_shouldBranch = ( r_P[ NEGATIVE_BIT ] == 0 );
+        BMI: l_shouldBranch = ( r_P[ NEGATIVE_BIT ] == 1 );
+        BVC: l_shouldBranch = ( r_P[ OVERFLOW_BIT ] == 0 );
+        BVS: l_shouldBranch = ( r_P[ OVERFLOW_BIT ] == 1 );
+        BCC: l_shouldBranch = ( r_P[ CARRY_BIT ] == 0 );
+        BCS: l_shouldBranch = ( r_P[ CARRY_BIT ] == 1 );
+        BNE: l_shouldBranch = ( r_P[ ZERO_BIT ] == 0 );
+        BEQ: l_shouldBranch = ( r_P[ ZERO_BIT ] == 1 );
 
         default: l_shouldBranch = 0;
     endcase
@@ -888,7 +878,7 @@ begin
                             2'b00:
                             begin
                                 r_dataOut = r_PC[ 15:8 ];
-                                r_P_nxt[ `BREAK_BIT ] = 1'b1;
+                                r_P_nxt[ BREAK_BIT ] = 1'b1;
                             end
 
                             2'b01:
@@ -1330,13 +1320,13 @@ begin
                         TXS: r_S_nxt = r_X;
 
                     
-                        CLC: r_S_nxt[ `CARRY_BIT ] = 0;
-                        SEC: r_S_nxt[ `CARRY_BIT ] = 1;
-                        CLI: r_S_nxt[ `INTERRUPT_BIT ] = 0;
-                        SEI: r_S_nxt[ `INTERRUPT_BIT ] = 1;
-                        CLV: r_S_nxt[ `OVERFLOW_BIT ] = 0;
-                        CLD: r_S_nxt[ `DECIMAL_BIT ] = 0;
-                        SED: r_S_nxt[ `DECIMAL_BIT ] = 1;
+                        CLC: r_S_nxt[ CARRY_BIT ] = 0;
+                        SEC: r_S_nxt[ CARRY_BIT ] = 1;
+                        CLI: r_S_nxt[ INTERRUPT_BIT ] = 0;
+                        SEI: r_S_nxt[ INTERRUPT_BIT ] = 1;
+                        CLV: r_S_nxt[ OVERFLOW_BIT ] = 0;
+                        CLD: r_S_nxt[ DECIMAL_BIT ] = 0;
+                        SED: r_S_nxt[ DECIMAL_BIT ] = 1;
 
                         BPL,
                         BMI,
