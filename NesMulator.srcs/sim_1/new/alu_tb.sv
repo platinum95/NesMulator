@@ -5,74 +5,36 @@ import M6502Defs::AluOperation;
 import M6502Defs::StatusBits;
 
 class AluStimulusGenerator;
-    static AluOperation currentOperation = AluOperation_AND;
+    static AluOperation currentOperation = AluOperation_ADC;
     static logic[ 7:0 ] a = 0;
     static logic[ 7:0 ] b = 0;
     static logic[ 7:0 ] status = 0;
 
     function TickStimulus();
-        if ( OperationComplete() )
+        if ( a == 8'hFF && b == 8'hFF && status == 8'hFF)
         begin
+            $display( "** COMPLETED VALIDATION OF ALU OPERATION %0s **", currentOperation.name() );
             if ( currentOperation == AluOperation_LSR )
             begin
-                $display( "Stimulus generation completed" );
+                $display( "** VALIDATION OF ALU COMPLETE **" );
                 return 1'b0;
                 $finish;
             end
             else
             begin
                 $cast( currentOperation, currentOperation + 1 );
-                a = 0;
-                b = 0;
+                a = 8'b0;
+                b = 8'b0;
+                status = 8'b0;
+                $display( "** STARTING VALIDATION OF ALU OPERATION %0s **", currentOperation.name() );
                 return 1'b1;
             end
         end
         else
         begin
-            status = status + 1;
-            if ( status == 0 )
-            begin
-                a = a + 1;
-                if ( a == 0 )
-                begin
-                    b = b + 1;
-                end
-            end
-            // TODO - possibly { b, a } = a + 1;
+            { b, a, status } = { b, a, status } + 1;
             return 1'b1;
         end
-    endfunction
-
-    function OperationComplete();
-        case( currentOperation )
-            AluOperation_ADC,
-            AluOperation_SBC,
-            AluOperation_CMP,
-            AluOperation_AND,
-            AluOperation_OR,
-            AluOperation_EOR:
-            begin
-                if ( a == 255 && b == 255 )
-                begin
-                    return 1'b1;
-                end
-            end
-
-            AluOperation_INC,
-            AluOperation_DEC,
-            AluOperation_ASL,
-            AluOperation_ROL,
-            AluOperation_ROR,
-            AluOperation_LSR:
-            begin
-                if ( a == 255 )
-                begin
-                    return 1'b1;
-                end
-            end
-        endcase
-
-        return 1'b0;
     endfunction
 
 endclass
@@ -114,12 +76,14 @@ class ResultVerifier;
                         ( generator.status[ CARRY_BIT ] ? "1" : "0" ),
                         expectedResultSigned,
                         result,
-                        string'( GetStatusString( expectedStatus ) ),
-                        GetStatusString( resultantStatus ) );
+                        GetStatusString( expectedStatus ),
+                        GetStatusString( resultantStatus )
+                    );
                     return 1'b0;
                 end
                 return 1'b1;
             end
+
             AluOperation_SBC:
             begin
                 byte expectedResultSigned = b_a - ( b_b + ( generator.status[ CARRY_BIT ] ? 0 : 1 ) );
@@ -139,12 +103,14 @@ class ResultVerifier;
                         ( generator.status[ CARRY_BIT ] ? "0" : "1" ),
                         expectedResultUnsigned,
                         result,
-                        string'( GetStatusString( expectedStatus ) ),
-                        GetStatusString( resultantStatus ) );
+                        GetStatusString( expectedStatus ),
+                        GetStatusString( resultantStatus )
+                    );
                     return 1'b0;
                 end
                 return 1'b1;
             end
+
             AluOperation_CMP:
             begin
                 logic[ 7:0 ] res = generator.a - generator.b; // TODO - maybe more abstract
@@ -163,6 +129,7 @@ class ResultVerifier;
                 end
                 return 1'b1;
             end
+
             AluOperation_AND:
             begin
                 logic [ 7:0 ] expectedResult = generator.a & generator.b;
@@ -183,32 +150,174 @@ class ResultVerifier;
                 end
                 return 1'b1;
             end
+
             AluOperation_OR:
             begin
+                logic[ 7:0 ] expectedResult = generator.a | generator.b;
+                expectedStatus[ NEGATIVE_BIT ] = expectedResult[ 7 ];
+                expectedStatus[ ZERO_BIT ] = ( expectedResult == 0 );
+
+                if ( expectedResult != result || resultantStatus != expectedStatus )
+                begin
+                    $display( "Verifier error: 0x%0X | 0x%0X, expected %0X, got %0X. Expected status %s, got %s",
+                        generator.a,
+                        generator.b,
+                        expectedResult,
+                        result,
+                        GetStatusString( expectedStatus ),
+                        GetStatusString( resultantStatus )
+                    );
+                    return 1'b0;
+                end
+                return 1'b1;
             end
+
             AluOperation_EOR:
             begin
+                logic[ 7:0 ] expectedResult = generator.a ^ generator.b;
+                expectedStatus[ NEGATIVE_BIT ] = expectedResult[ 7 ];
+                expectedStatus[ ZERO_BIT ] = ( expectedResult == 0 );
+
+                if ( expectedResult != result || resultantStatus != expectedStatus )
+                begin
+                    $display( "Verifier error: 0x%0X ^ 0x%0X, expected %0X, got %0X. Expected status %s, got %s",
+                        generator.a,
+                        generator.b,
+                        expectedResult,
+                        result,
+                        GetStatusString( expectedStatus ),
+                        GetStatusString( resultantStatus )
+                    );
+                    return 1'b0;
+                end
+                return 1'b1;
             end
 
             AluOperation_INC:
             begin
+                logic[ 7:0 ] expectedResult = generator.a + 8'b1;
+                expectedStatus[ NEGATIVE_BIT ] = expectedResult[ 7 ];
+                expectedStatus[ ZERO_BIT ] = ( expectedResult == 0 );
+
+                if ( expectedResult != result || resultantStatus != expectedStatus )
+                begin
+                    $display( "Verifier error: 0x%0X + 1, expected %0X, got %0X. Expected status %s, got %s",
+                        generator.a,
+                        expectedResult,
+                        result,
+                        GetStatusString( expectedStatus ),
+                        GetStatusString( resultantStatus )
+                    );
+                    return 1'b0;
+                end
+                return 1'b1;
             end
+
             AluOperation_DEC:
             begin
+                logic[ 7:0 ] expectedResult = generator.a - 8'b1;
+                expectedStatus[ NEGATIVE_BIT ] = expectedResult[ 7 ];
+                expectedStatus[ ZERO_BIT ] = ( expectedResult == 0 );
+
+                if ( expectedResult != result || resultantStatus != expectedStatus )
+                begin
+                    $display( "Verifier error: 0x%0X - 1, expected %0X, got %0X. Expected status %s, got %s",
+                        generator.a,
+                        expectedResult,
+                        result,
+                        GetStatusString( expectedStatus ),
+                        GetStatusString( resultantStatus )
+                    );
+                    return 1'b0;
+                end
+                return 1'b1;
             end
+
             AluOperation_ASL:
             begin
+                logic[ 7:0 ] expectedResult = { generator.a[ 6:0 ], 1'b0 };
+                expectedStatus[ CARRY_BIT ] = generator.a[ 7 ];
+                expectedStatus[ NEGATIVE_BIT ] = expectedResult[ 7 ];
+                expectedStatus[ ZERO_BIT ] = ( expectedResult == 0 );
+
+                if ( expectedResult != result || resultantStatus != expectedStatus )
+                begin
+                    $display( "Verifier error: 0x%0X << 1, expected %0X, got %0X. Expected status %s, got %s",
+                        generator.a,
+                        expectedResult,
+                        result,
+                        GetStatusString( expectedStatus ),
+                        GetStatusString( resultantStatus )
+                    );
+                    return 1'b0;
+                end
+                return 1'b1;
             end
+
             AluOperation_ROL:
             begin
+                logic[ 7:0 ] expectedResult = { generator.a[ 6:0 ], generator.status[ CARRY_BIT ] };
+                expectedStatus[ CARRY_BIT ] = generator.a[ 7 ];
+                expectedStatus[ NEGATIVE_BIT ] = expectedResult[ 7 ];
+                expectedStatus[ ZERO_BIT ] = ( expectedResult == 0 );
+
+                if ( expectedResult != result || resultantStatus != expectedStatus )
+                begin
+                    $display( "Verifier error: 0x%0X <<< 1 , expected %0X, got %0X. Expected status %s, got %s",
+                        generator.a,
+                        expectedResult,
+                        result,
+                        GetStatusString( expectedStatus ),
+                        GetStatusString( resultantStatus )
+                    );
+                    return 1'b0;
+                end
+                return 1'b1;
             end
+
             AluOperation_ROR:
             begin
+                logic[ 7:0 ] expectedResult = { generator.status[ CARRY_BIT ], generator.a[ 7:1 ] };
+                expectedStatus[ CARRY_BIT ] = generator.a[ 0 ];
+                expectedStatus[ NEGATIVE_BIT ] = expectedResult[ 7 ];
+                expectedStatus[ ZERO_BIT ] = ( expectedResult == 0 );
+
+                if ( expectedResult != result || resultantStatus != expectedStatus )
+                begin
+                    $display( "Verifier error: 0x%0X >>> 1, expected %0X, got %0X. Expected status %s, got %s",
+                        generator.a,
+                        expectedResult,
+                        result,
+                        GetStatusString( expectedStatus ),
+                        GetStatusString( resultantStatus )
+                    );
+                    return 1'b0;
+                end
+                return 1'b1;
             end
+
             AluOperation_LSR:
             begin
-                
+                logic[ 7:0 ] expectedResult = { 1'b0, generator.a[ 7:1 ] };
+                expectedStatus[ CARRY_BIT ] = generator.a[ 0 ];
+                expectedStatus[ NEGATIVE_BIT ] = expectedResult[ 7 ];
+                expectedStatus[ ZERO_BIT ] = ( expectedResult == 0 );
+
+                if ( expectedResult != result || resultantStatus != expectedStatus )
+                begin
+                    $display( "Verifier error: 0x%0X >> 1, expected %0X, got %0X. Expected status %s, got %s",
+                        generator.a,
+                        generator.b,
+                        expectedResult,
+                        result,
+                        GetStatusString( expectedStatus ),
+                        GetStatusString( resultantStatus )
+                    );
+                    return 1'b0;
+                end
+                return 1'b1;
             end
+
         endcase
         return 1'b0;
     endfunction
