@@ -90,7 +90,6 @@ enum {
     ReadIndirect1,
     ReadIndirect2,
 
-    // New states to replace the old ones
     Read1,
     Read2,
     WriteBack,
@@ -129,14 +128,109 @@ enum {
 logic[ 7:0 ] r_indexingIndex; // For ZeroPageIndexed/AbsoluteIndexed
 
 /*******************************
-* Temporary ALU dummy
+* ALU
 ********************************/
-wire[ 7:0 ] w_aluOperation;
-wire[ 7:0 ] w_aluInA;
-wire[ 7:0 ] w_aluInB;
-wire[ 7:0 ] w_aluOut;
-wire[ 7:0 ] w_aluStatusIn;
-wire[ 7:0 ] w_aluStatusOut;
+AluOperation l_aluOperation;
+logic[ 7:0 ] l_aluInA;
+logic[ 7:0 ] l_aluOut;
+logic[ 7:0 ] l_aluStatusOut;
+
+alu m_alu(
+    .i_operation( l_aluOperation ),
+    .i_status( r_P ),
+    .i_a( l_aluInA ),
+    .i_b( io_data ),
+    .o_result( l_aluOut ),
+    .o_status( l_aluStatusOut )
+);
+
+// Set ALU inputs
+always_comb
+begin
+    l_aluInA = r_A;
+
+    case( r_operation )
+        AND,
+        ORA,
+        EOR,
+        BIT,
+        ADC,
+        SBC,
+        CMP,
+        DEC,
+        INC:
+        begin
+            l_aluInA = r_A;
+        end
+
+        CPX,
+        DEX,
+        INX:
+        begin
+            l_aluInA = r_X;
+        end
+
+        CPY,
+        DEY,
+        INY:
+        begin
+            l_aluInA = r_Y;
+        end
+
+        LSR,
+        ROL,
+        ROR,
+        ASL:
+        begin
+            if ( r_addressingMode == Implied )
+            begin
+                l_aluInA = r_A;
+            end
+            else
+            begin
+                l_aluInA = io_data;
+            end
+        end
+
+        default:
+        begin
+            l_aluInA = r_A;
+        end
+
+    endcase
+end
+
+always_comb
+begin
+    case( r_operation )
+        AND,
+        BIT: l_aluOperation = AluOperation_AND;
+        ORA: l_aluOperation = AluOperation_OR;
+        EOR: l_aluOperation = AluOperation_EOR;
+
+        ADC: l_aluOperation = AluOperation_ADC;
+        SBC: l_aluOperation = AluOperation_SBC;
+
+        CMP,
+        CPX,
+        CPY: l_aluOperation = AluOperation_CMP;
+
+        DEC,
+        DEX,
+        DEY: l_aluOperation = AluOperation_DEC;
+
+        INC,
+        INY,
+        INX: l_aluOperation = AluOperation_INC;
+
+        LSR: l_aluOperation = AluOperation_LSR;
+        ROL: l_aluOperation = AluOperation_ROL;
+        ROR: l_aluOperation = AluOperation_ROR;
+        ASL: l_aluOperation = AluOperation_ASL;
+
+        default: l_aluOperation = AluOperation_ADC;
+    endcase
+end
 
 /*******************************
 * Combinational Opcode Decoder
@@ -148,9 +242,9 @@ wire[ 2:0 ] w_a;
 wire[ 2:0 ] w_b;
 wire[ 1:0 ] w_c;
 
-assign w_a = r_OPCODE_nxt[ 7:5 ];
-assign w_b = r_OPCODE_nxt[ 4:2 ];
-assign w_c = r_OPCODE_nxt[ 1:0 ];
+assign w_a = r_OPCODE[ 7:5 ];
+assign w_b = r_OPCODE[ 4:2 ];
+assign w_c = r_OPCODE[ 1:0 ];
 
 // Decode addressing mode
 always_comb
@@ -793,10 +887,6 @@ begin
 
     if ( r_mainState == Fetch )
     begin
-        // Always inc PC after fetch
-        r_PC_nxt = r_PC + 1;
-        r_OPCODE_nxt = io_data;
-
         if ( r_indexerCarry )
         begin
             // Just fetched branched opcode, but PCH needs fixing
@@ -806,45 +896,36 @@ begin
         end
         else
         begin
-            case ( r_operation )
-                BPL,
-                BMI,
-                BVC,
-                BVS,
-                BCC,
-                BCS,
-                BNE,
-                BEQ:
-                begin
-                    if ( l_shouldBranch )
-                    begin
-                        // Need to branch based on relative address.
-                        r_PC_nxt[ 7:0 ] = r_PC[ 7:0 ] + r_OPERAND1;
+            // Not branching or branched PC doesn't need fixing: regular fetch. Inc PC and get next OPCODE
+            r_PC_nxt = r_PC + 1;
+            r_OPCODE_nxt = io_data;
+        end
+    end
+    else if ( r_mainState == ReadOperand2 && r_addressingMode == Relative )
+    begin
+        // Branch op, check if we should branch. Add OPERAND1 to PCL if so, otherwise increment PC.
+        if ( l_shouldBranch )
+        begin
+            // Need to branch based on relative address.
+            r_PC_nxt[ 7:0 ] = r_PC[ 7:0 ] + r_OPERAND1;
 
-                        // 'Carry' here indicates either addition-carry or subtraction-borrow,
-                        // Really just a flag that we need to fix PCH.
-                        r_indexerCarry_nxt = ( r_OPERAND1[ 7 ] == 0 ) ?
-                            ( r_PC[ 7 ] == 1 ) && ( r_PC_nxt[ 7 ] == 0 ) // Addition
-                            : ( r_PC[ 7 ] == 0 ) && ( r_PC_nxt[ 7 ] == 1 ); // Subtraction
-                    end
-                    else
-                    begin
-                        // Not branching, continue to read operand of current instruction
-                        r_PC_nxt = r_PC + 1;
-                    end
-                end
-
-                default:
-                begin
-                    r_PC_nxt = r_PC + 1;
-                end
-            endcase
+            // 'Carry' here indicates either addition-carry or subtraction-borrow,
+            // Really just a flag that we need to fix PCH.
+            r_indexerCarry_nxt = ( r_OPERAND1[ 7 ] == 0 ) ?
+                ( r_PC[ 7 ] == 1 ) && ( r_PC_nxt[ 7 ] == 0 ) // Addition
+                : ( r_PC[ 7 ] == 0 ) && ( r_PC_nxt[ 7 ] == 1 ); // Subtraction
+        end
+        else
+        begin
+            // Not branching, continue to read operand of current instruction
+            r_PC_nxt = r_PC + 1;
+            r_OPCODE_nxt = io_data;
         end
     end
     else
     begin
 
-        if ( ( r_mainState >= ReadOperand1 || r_mainState == ReadOperand2 ) && r_addressingMode != Implied )
+        if ( ( r_mainState == ReadOperand1 || r_mainState == ReadOperand2 ) && r_addressingMode != Implied )
         begin
             // Inc PC if the operation has operands
             r_PC_nxt = r_PC + 1;
@@ -1072,7 +1153,7 @@ begin
                 case( r_mainState )
                     ReadOperand1:
                     begin
-                        // NOP
+                        r_OPERAND1_nxt = io_data;
                     end
 
                     // TODO - there's a NOP cycle here
@@ -1121,7 +1202,7 @@ begin
                 // Get-effective address logic
                 if ( r_addressingMode != Implied && r_addressingMode != Immediate && r_mainState < Read1 )
                 begin
-                    case ( r_mainState_nxt )
+                    case ( r_mainState )
                         ReadOperand1:
                         begin
                             case ( r_addressingMode )
@@ -1282,7 +1363,15 @@ begin
                         SBC:
                         begin
                             // ALU Operations and register-transfers
-                            r_A_nxt = w_aluOut;
+                            r_A_nxt = l_aluOut;
+                            r_P_nxt = l_aluStatusOut;
+                        end
+
+                        CMP,
+                        CPX,
+                        CPY:
+                        begin
+                            r_P_nxt = l_aluStatusOut;
                         end
 
                         ASL,
@@ -1296,8 +1385,9 @@ begin
                             // Also ALU, but possibly going to mem
                             if ( r_addressingMode == Implied )
                             begin
-                                r_A_nxt = w_aluOut;
+                                r_A_nxt = l_aluOut;
                             end
+                            r_P_nxt = l_aluStatusOut;
                         end
 
                         TSX: r_X_nxt = r_S;
@@ -1306,7 +1396,8 @@ begin
                         DEX,
                         INX:
                         begin
-                            r_X_nxt = w_aluOut;
+                            r_X_nxt = l_aluOut;
+                            r_P_nxt = l_aluStatusOut;
                         end
 
                         TAY: r_Y_nxt = r_A;
@@ -1314,12 +1405,12 @@ begin
                         DEY,
                         INY:
                         begin
-                            r_Y_nxt = w_aluOut;
+                            r_Y_nxt = l_aluOut;
+                            r_P_nxt = l_aluStatusOut;
                         end
 
                         TXS: r_S_nxt = r_X;
 
-                    
                         CLC: r_S_nxt[ CARRY_BIT ] = 0;
                         SEC: r_S_nxt[ CARRY_BIT ] = 1;
                         CLI: r_S_nxt[ INTERRUPT_BIT ] = 0;
@@ -1474,83 +1565,72 @@ begin
             end
             else
             begin
-                // Check the opcode that we just operated on. If it's a branch, then
-                // we're still executing it at this point.
-                case ( r_operation )
-                    BPL,
-                    BMI,
-                    BVC,
-                    BVS,
-                    BCC,
-                    BCS,
-                    BNE,
-                    BEQ:
-                    begin
-                        r_mainState_nxt = ( l_shouldBranch == 1'b1 ) ? Fetch : ReadOperand1;
-                    end
-
-                    default:
-                    begin
-                        r_mainState_nxt = ReadOperand1;
-                    end
-                endcase
+                r_mainState_nxt = ReadOperand1;
             end
         end
 
         ReadOperand1:
         begin
-            case( r_addressingMode )
-                Implied,
-                Immediate:
-                begin
-                    // Send stack-ops off to specific handlers
-                    case ( r_operation )
-                        BRK,
-                        PHA,
-                        PHP:
-                        begin
-                            r_mainState_nxt = StackWrite;
-                        end
+            if ( r_operation == JSR )
+            begin
+                r_mainState_nxt = StackWrite;
+                r_stackStateCounter_nxt = 0;
+            end
+            else
+            begin
+                case( r_addressingMode )
+                    Implied,
+                    Immediate:
+                    begin
+                        // Send stack-ops off to specific handlers
+                        case ( r_operation )
+                            BRK,
+                            PHA,
+                            PHP:
+                            begin
+                                r_mainState_nxt = StackWrite;
+                            end
 
-                        RTI,
-                        RTS,
-                        PLA,
-                        PLP:
-                        begin
-                            r_mainState_nxt = StackRead;
-                        end
-                        default:
-                        begin
-                            r_mainState_nxt = Fetch;
-                        end
-                    endcase
-                end
+                            RTI,
+                            RTS,
+                            PLA,
+                            PLP:
+                            begin
+                                r_mainState_nxt = StackRead;
+                            end
+                            default:
+                            begin
+                                r_mainState_nxt = Fetch;
+                            end
+                        endcase
+                    end
 
-                Absolute,
-                AbsoluteIndexed,
-                AbsoluteIndirect,
-                Relative:
-                begin
-                    r_mainState_nxt = ReadOperand2;
-                end
+                    Absolute,
+                    AbsoluteIndexed,
+                    AbsoluteIndirect,
+                    Relative:
+                    begin
+                        r_mainState_nxt = ReadOperand2;
+                    end
 
-                ZeroPage,
-                ZeroPageIndexed:
-                begin
-                    r_mainState_nxt = ReadMem1;
-                end
+                    ZeroPage,
+                    ZeroPageIndexed:
+                    begin
+                        r_mainState_nxt = ReadMem1;
+                    end
 
-                IndexedIndirect,
-                IndirectIndexed:
-                begin
-                    r_mainState_nxt = ReadMem1;
-                end
+                    IndexedIndirect,
+                    IndirectIndexed:
+                    begin
+                        r_mainState_nxt = ReadMem1;
+                    end
 
-                default:
-                begin
-                    // TODO - error
-                end
-            endcase
+                    default:
+                    begin
+                        // TODO - error
+                    end
+                endcase
+            end
         end
         ReadOperand2:
         begin
@@ -1560,10 +1640,12 @@ begin
                     if ( r_operation == JMP ) r_mainState_nxt = Fetch;
                     else r_mainState_nxt = Read1;
                 end
+
                 AbsoluteIndexed:
                 begin
                     r_mainState_nxt = Read1;
                 end
+
                 AbsoluteIndirect:
                 begin
                     r_mainState_nxt = ReadIndirect1;
@@ -1571,7 +1653,9 @@ begin
 
                 Relative:
                 begin
-                    r_mainState_nxt = Fetch;
+                    // If we're not branching, the value in OPERAND2 becomes the new OPCODE.
+                    // If we are branching, we need to fetch the new opcode.
+                    r_mainState_nxt = l_shouldBranch ? Fetch : ReadOperand1;
                 end
 
                 default:
@@ -1857,7 +1941,7 @@ begin
                 case( r_operation )
                     JSR:
                     begin
-                        r_mainState_nxt = PcInc; // TODO - fix - Needs to read PC from mem
+                        r_mainState_nxt = JsrAux;
                         r_stackStateCounter_nxt = 2'b00;
                     end
                     BRK:
@@ -1922,7 +2006,7 @@ begin
         r_Y                 <= 8'h00;
         r_S                 <= 8'h00;
         r_P                 <= 8'h00;
-        r_PC                <= 8'h00;
+        r_PC                <= 8'h08;
 
         r_OPERAND1          <= 0;
         r_OPERAND2          <= 0;

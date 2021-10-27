@@ -76,6 +76,11 @@ begin
             // End condition
             $finish;
         end
+        else if ( addr == 16'hFFFE )
+        begin
+            $display( "Test ROM jumped to error state" );
+            $finish;
+        end
         else if ( addr < 511 )
         begin
             l_sendData = TestROMs[ currentRom ][ addr ];
