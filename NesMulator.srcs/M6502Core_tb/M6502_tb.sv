@@ -31,6 +31,20 @@ wire[ 7:0 ] data;
 logic[ 15:0 ] addr;
 logic rw;
 
+//import "DPI-C" function void TestDpiFunction ();
+//import "DPI-C" pure function int TestDpiFunction2 ();
+//import "DPI-C" pure function int test ();
+
+integer test2;
+logic[ 7:0 ] test3;
+initial
+begin
+    //TestDpiFunction();
+    //test2 = test();//TestDpiFunction2();
+    //test3 = test[ 7:0 ];
+
+end
+
 M6502 m6502 (
     .i_clk( clk ),
     .i_rst( rst ),
