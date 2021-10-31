@@ -1,6 +1,8 @@
-OledDriver.cache
-OledDriver.gen
-OledDriver.hw
-OledDriver.ip_user_files
-OledDriver.runs
-OledDriver.sim
+NesMulator.cache
+NesMulator.gen
+NesMulator.hw
+NesMulator.ip_user_files
+NesMulator.runs
+NesMulator.sim
+NesMulator.xpr
+.Xil
