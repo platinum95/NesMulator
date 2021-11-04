@@ -19,6 +19,14 @@
 // 
 //////////////////////////////////////////////////////////////////////////////////
 
+//package pack1;
+//import "DPI-C" function int myFunction1(input int v, output int o); 
+//import "DPI-C" function void myFunction2 (input int v1, input int v2, output int o);
+//import "DPI-C" function int myFunction3(input int v, output int o); 
+//import "DPI-C" function void myFunction4 (input int v1, input int v2, output int o);
+//endpackage
+
+`include "M6502ModelInterface.sv"
 
 module M6502_tb(
     );
@@ -31,18 +39,11 @@ wire[ 7:0 ] data;
 logic[ 15:0 ] addr;
 logic rw;
 
-//import "DPI-C" function void TestDpiFunction ();
-//import "DPI-C" pure function int TestDpiFunction2 ();
-//import "DPI-C" pure function int test ();
+M6502ModelInterface modelInterface();
 
-integer test2;
-logic[ 7:0 ] test3;
-initial
-begin
-    //TestDpiFunction();
-    //test2 = test();//TestDpiFunction2();
-    //test3 = test[ 7:0 ];
-
+initial begin
+   // modelInterface = new();
+    modelInterface.ResetModel();
 end
 
 M6502 m6502 (
@@ -64,20 +65,23 @@ begin
     end
 end
 
-`define NUM_ROMS 1
+`define NUM_ROMS 2
 // ROMs, 512 bytes available each
-byte TestROMs[ `NUM_ROMS ][ 0:511 ] = '{ default:0 };
+byte TestROMs[ `NUM_ROMS ][ 0:16'hFFFF ] = '{ default:0 };
 
 initial
 begin
     // TODO - some kind of loop here to load in automatically
-    $readmemh( "./test_rom1.mem", TestROMs[ 0 ] );
+    //$readmemh( "./test_rom1.mem", TestROMs[ 0 ] );
+    $readmemh( "./6502_functional_test.mem", TestROMs[ 1 ] );
+    //static int n_File_ID = $fopen( "./6502_functional_test.mem", "rb" );
+    //$fread( TestROMs[ 1 ], n_File_ID );
 end
 
 // Test RAM, 512 bytes
 byte RAM[ 512 ];
 
-int currentRom = 0;
+int currentRom = 1;
 
 reg[ 7:0 ] l_sendData;
 assign data = rw ? 8'hZZ : l_sendData;
@@ -95,7 +99,7 @@ begin
             $display( "Test ROM jumped to error state" );
             $finish;
         end
-        else if ( addr < 511 )
+        else
         begin
             l_sendData = TestROMs[ currentRom ][ addr ];
         end
