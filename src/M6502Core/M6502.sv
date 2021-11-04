@@ -1,6 +1,8 @@
 `timescale 1ns / 1ps
 
+import M6502Defs::AddressingMode;
 import M6502Defs::AluOperation;
+import M6502Defs::Operation;
 import M6502Defs::StatusBits;
 
 module M6502(
@@ -112,18 +114,7 @@ logic[ 1:0 ] r_stackStateCounter_nxt = 0;
 /******************************
 * Addressing modes
 ******************************/
-enum {
-    Implied,
-    Immediate,
-    Absolute,
-    ZeroPage,
-    ZeroPageIndexed,
-    AbsoluteIndexed,
-    Relative,
-    IndexedIndirect,
-    IndirectIndexed,
-    AbsoluteIndirect
-} r_addressingMode;
+AddressingMode r_addressingMode;
 
 logic[ 7:0 ] r_indexingIndex; // For ZeroPageIndexed/AbsoluteIndexed
 
@@ -363,81 +354,7 @@ begin
 end
 
 // Operation decoding logic
-enum {
-    // ALU Ops
-    ADC,
-    AND,
-    ASL,
-    DEC,
-    DEX,
-    INX,
-    DEY,
-    INY,
-    EOR,
-    INC,
-    ORA,
-    ROL,
-    ROR,
-    SBC,
-
-    // Compares
-    CMP,
-    CPX,
-    CPY,
-    
-    // Loads
-    LDA,
-    LDX,
-    LDY,
-    LSR,
-
-    // Stores
-    STA,
-    STX,
-    STY,
-
-    // Register-transfer ops
-    TAX,
-    TXA,
-    TAY,
-    TYA,
-    TXS,
-    TSX,
-
-    // Stack ops
-    PHA,
-    PLA,
-    PHP,
-    PLP,
-
-    // Status ops
-    CLC,
-    SEC,
-    CLI,
-    SEI,
-    CLV,
-    CLD,
-    SED,
-
-    // Branch ops
-    BPL,
-    BMI,
-    BVC,
-    BVS,
-    BCC,
-    BCS,
-    BNE,
-    BEQ,
-
-    BIT,
-    BRK,
-    JMP,
-    JSR,
-    NOP,
-    RTI,
-    RTS,
-    JAM
-} r_operation;
+Operation r_operation;
 
 // Decode operation
 always_comb
@@ -706,11 +623,7 @@ end
 
 
 // Signal operation access type, used in conjunction with AddressingMode
-enum {
-    Access_Read,
-    Access_Write,
-    Access_ReadWrite
-} r_operationAccessType;
+AccessType r_operationAccessType;
 
 always_comb
 begin
@@ -2064,5 +1977,8 @@ function void Error( string msg );
     $fatal( 0 );
 endfunction
 
+function void TbSetOpcode( logic[ 7:0 ] i_opcode );
+    r_OPCODE = i_opcode;
+endfunction
 
 endmodule

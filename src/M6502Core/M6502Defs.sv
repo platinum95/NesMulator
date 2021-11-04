@@ -28,4 +28,99 @@ typedef enum {
     NEGATIVE_BIT = 7
 } StatusBits;
 
+typedef enum {
+    Implied,
+    Immediate,
+    Absolute,
+    ZeroPage,
+    ZeroPageIndexed,
+    AbsoluteIndexed,
+    Relative,
+    IndexedIndirect,
+    IndirectIndexed,
+    AbsoluteIndirect
+} AddressingMode;
+
+typedef enum {
+    // ALU Ops
+    ADC,
+    AND,
+    ASL,
+    DEC,
+    DEX,
+    INX,
+    DEY,
+    INY,
+    EOR,
+    INC,
+    ORA,
+    ROL,
+    ROR,
+    SBC,
+
+    // Compares
+    CMP,
+    CPX,
+    CPY,
+    
+    // Loads
+    LDA,
+    LDX,
+    LDY,
+    LSR,
+
+    // Stores
+    STA,
+    STX,
+    STY,
+
+    // Register-transfer ops
+    TAX,
+    TXA,
+    TAY,
+    TYA,
+    TXS,
+    TSX,
+
+    // Stack ops
+    PHA,
+    PLA,
+    PHP,
+    PLP,
+
+    // Status ops
+    CLC,
+    SEC,
+    CLI,
+    SEI,
+    CLV,
+    CLD,
+    SED,
+
+    // Branch ops
+    BPL,
+    BMI,
+    BVC,
+    BVS,
+    BCC,
+    BCS,
+    BNE,
+    BEQ,
+
+    BIT,
+    BRK,
+    JMP,
+    JSR,
+    NOP,
+    RTI,
+    RTS,
+    JAM
+} Operation;
+
+typedef enum {
+    Access_Read,
+    Access_Write,
+    Access_ReadWrite
+} AccessType;
+
 endpackage
