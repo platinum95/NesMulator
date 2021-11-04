@@ -634,7 +634,7 @@ begin
                             r_operation = LDX;
                         end
                     end
-                    6: r_operation = DEC;
+                    6: r_operation = ( w_b == 3'b011 ) ? DEX : DEC;
                     7: r_operation = INC;
                 endcase
             end
@@ -643,6 +643,7 @@ begin
         2'b11:
         begin
             // TODO - illegal opcodes
+            Error( "TODO - illegal opcodes" );
             r_operation = NOP;
         end
     endcase
@@ -683,7 +684,6 @@ begin
 
         Relative:
         begin
-            // TODO - branching
             r_readReady = ( r_mainState >= ReadOperand1 );
         end
 
@@ -694,13 +694,12 @@ begin
 
         AbsoluteIndirect:
         begin
-            // TODO - JMP
             r_readReady = ( r_mainState >= ReadIndirect2 );
         end
 
         default:
         begin
-            // TODO - error
+            Error( "Invalid addressing mode in read-ready logic" );
         end
     endcase
 end
@@ -793,7 +792,7 @@ begin
 
         default:
         begin
-            // TODO - error
+            Error( "Invalid operation in access-type logic" );
         end
     endcase
 end
@@ -837,7 +836,7 @@ begin
 
         default:
         begin
-            // TODO - error
+            Error( "Invalid Main State in read-write logic" );
         end
     endcase
 end
@@ -974,7 +973,7 @@ begin
 
                             2'b11:
                             begin
-                                // TODO - error
+                                Error( "Invalid stack-write state in BRK reg-updating logic" );
                             end
                         endcase
                     end
@@ -991,7 +990,7 @@ begin
 
                     default:
                     begin
-                        // TODO - error
+                        Error( "Invalid Main State in BRK reg-updating logic" );
                     end
                 endcase
             end
@@ -1033,7 +1032,7 @@ begin
 
                     default:
                     begin
-                        // TODO - error
+                        Error( "Invalid Main State in RTI reg-updating logic" );
                     end
                 endcase
             end
@@ -1067,13 +1066,13 @@ begin
 
                             2'b11:
                             begin
-                                // TODO - error
+                                Error( "Invalid stack-read state in RTS reg-updating logic" );
                             end
                         endcase
                     end
                     default:
                     begin
-                        // TODO - error
+                        Error( "Invalid Main State in RTS reg-updating logic" );
                     end
                 endcase
             end
@@ -1096,13 +1095,13 @@ begin
                             end
                             default:
                             begin
-                                // TODO - error
+                                Error( "Invalid stack-write state in PHA/PHP reg-updating logic" );
                             end
                         endcase
                     end
                     default:
                     begin
-                        // TODO - error
+                        Error( "Invalid Main State in PHA/PHP reg-updating logic" );
                     end
                 endcase
             end
@@ -1137,13 +1136,13 @@ begin
                             end
                             default:
                             begin
-                                // TODO - error
+                                Error( "Invalid stack-read state in PLA/PLP reg-updating logic" );
                             end
                         endcase
                     end
                     default:
                     begin
-                        // TODO - error
+                        Error( "Invalid Main State in PLA/PLP reg-updating logic" );
                     end
                 endcase
             end
@@ -1173,7 +1172,7 @@ begin
 
                             default:
                             begin
-                                // TODO - error
+                                Error( "Invalid stack-write state in JSR reg-updating logic" );
                             end
                         endcase
                     end
@@ -1184,7 +1183,7 @@ begin
                     end
                     default:
                     begin
-                        // TODO - error
+                        Error( "Invalid Main State in JSR reg-updating logic" );
                     end
                 endcase
             end
@@ -1266,7 +1265,7 @@ begin
 
                                 default:
                                 begin
-                                    // TODO - error
+                                    Error( "Invalid addressing mode in reg-updating logic" );
                                 end
                             endcase
                         end
@@ -1288,7 +1287,7 @@ begin
 
                                 default:
                                 begin
-                                    // TODO - error
+                                    Error( "Invalid addressing mode in reg-updating logic" );
                                 end
                             endcase
                         end
@@ -1303,7 +1302,7 @@ begin
 
                                 default:
                                 begin
-                                    // TODO - error
+                                    Error( "Invalid addressing mode in reg-updating logic" );
                                 end
                             endcase
                         end
@@ -1318,7 +1317,7 @@ begin
 
                                 default:
                                 begin
-                                    // TODO - error
+                                    Error( "Invalid addressing mode in reg-updating logic" );
                                 end
                             endcase
                         end
@@ -1335,7 +1334,7 @@ begin
                                 
                                 default:
                                 begin
-                                    // TODO - error
+                                    Error( "Invalid addressing mode in reg-updating logic" );
                                 end
                             endcase
                         end
@@ -1475,7 +1474,7 @@ begin
 
                 default:
                 begin
-                    // TODO - error
+                    Error( "Invalid addressing mode in output address logic" );
                 end
             endcase
         end
@@ -1495,7 +1494,7 @@ begin
 
                 default:
                 begin
-                    // TODO - error
+                    Error( "Invalid addressing mode in output address logic" );
                 end
             endcase
         end
@@ -1542,7 +1541,7 @@ begin
 
         default:
         begin
-            // TODO - error
+            Error( "Invalid operation in output address logic" );
             o_addr = 0;
         end
     endcase
@@ -1627,7 +1626,7 @@ begin
 
                     default:
                     begin
-                        // TODO - error
+                        Error( "Invalid addressing mode in next-state logic" );
                     end
                 endcase
             end
@@ -1638,7 +1637,7 @@ begin
                 Absolute:
                 begin
                     if ( r_operation == JMP ) r_mainState_nxt = Fetch;
-                    else r_mainState_nxt = Read1;
+                    else r_mainState_nxt = ( r_operationAccessType == Access_Write ) ? WriteResult : Read1;
                 end
 
                 AbsoluteIndexed:
@@ -1660,7 +1659,7 @@ begin
 
                 default:
                 begin
-                    // TODO - error
+                    Error( "Invalid addressing mode in next-state logic" );
                 end
             endcase
 
@@ -1691,7 +1690,7 @@ begin
 
                 default:
                 begin
-                    // TODO - error
+                    Error( "Invalid addressing mode in next-state logic" );
                 end
             endcase
         end
@@ -1707,7 +1706,7 @@ begin
 
                 default:
                 begin
-                    // TODO - error
+                    Error( "Invalid addressing mode in next-state logic" );
                 end
             endcase
         end
@@ -1730,7 +1729,7 @@ begin
 
                 default:
                 begin
-                    // TODO - error
+                    Error( "Invalid addressing mode in next-state logic" );
                 end
             endcase
         end
@@ -1746,7 +1745,7 @@ begin
 
                 default:
                 begin
-                    // TODO - error
+                    Error( "Invalid addressing mode in next-state logic" );
                 end
             endcase
         end
@@ -1780,7 +1779,7 @@ begin
 
                         default:
                         begin
-                            // TODO - error
+                            Error( "Invalid op access type in state Read1" );
                         end
 
                     endcase
@@ -1801,7 +1800,7 @@ begin
 
                         default:
                         begin
-                            // TODO - error
+                            Error( "Invalid op access type in state Read1: " );
                         end
                     endcase
                 end
@@ -1826,7 +1825,7 @@ begin
 
                 default:
                 begin
-                    // TODO - error
+                    Error( "Invalid addressing type in next-state logic" );
                 end
             endcase
         end
@@ -1871,7 +1870,7 @@ begin
 
                         default:
                         begin
-                            // TODO - error
+                            Error( "Invalid operation in next-state logic" );
                         end
                     endcase
                 end
@@ -1892,7 +1891,7 @@ begin
 
                         default:
                         begin
-                            // TODO - error
+                            Error( "Invalid operation in next-state logic" );
                         end
                     endcase
                 end
@@ -1908,9 +1907,9 @@ begin
 
                         default:
                         begin
-                            // TODO - error
+                            Error( "Invalid operation in next-state logic" );
                         end
-                    endcase                    
+                    endcase
                 end
             endcase
         end
@@ -1962,13 +1961,13 @@ begin
 
                     default:
                     begin
-                        // TODO - error
+                        Error( "Invalid operation in next-state logic" );
                     end
                 endcase
             end
             2'b11:
             begin
-                // TODO - error
+                Error( "Invalid stack-write state in next-state logic" );
             end
             endcase
         end
@@ -2006,7 +2005,7 @@ begin
         r_Y                 <= 8'h00;
         r_S                 <= 8'h00;
         r_P                 <= 8'h00;
-        r_PC                <= 8'h08;
+        r_PC                <= 16'h0400;
 
         r_OPERAND1          <= 0;
         r_OPERAND2          <= 0;
@@ -2041,6 +2040,29 @@ begin
     end
 end
 
+function string GetStatusString();
+    return $sformatf ( "%s%s_%s%s%s%s%s",
+            ( r_P[ NEGATIVE_BIT ] ? "N" : "n" ),
+            ( r_P[ OVERFLOW_BIT ] ? "V" : "v" ),
+            ( r_P[ BREAK_BIT ] ? "B" : "b" ),
+            ( r_P[ DECIMAL_BIT ] ? "D" : "d" ),
+            ( r_P[ INTERRUPT_BIT ] ? "I" : "i" ),
+            ( r_P[ ZERO_BIT ] ? "Z" : "z" ),
+            ( r_P[ CARRY_BIT ] ? "C" : "c" )
+    );
+endfunction
+
+function string GetStateString();
+    return $sformatf ( "A: 0x%0X\nX: 0x%0X\nY: 0x%0X\nSP: 0x%0X\nP: %s\nPC: 0x%0X\nOpcode: 0x%0X\nOperation: %s\nAddressing Mode: %s\nAccessType: %s\nMain State: %s",
+            r_A, r_X, r_Y, r_S, GetStatusString(), r_PC,
+            r_OPCODE, r_operation.name(), r_addressingMode.name(), r_operationAccessType.name(), r_mainState.name()
+    );
+endfunction
+
+function void Error( string msg );
+    $error( $sformatf ( "%s\n%s", msg, GetStateString() ) );
+    $fatal( 0 );
+endfunction
 
 
 endmodule
