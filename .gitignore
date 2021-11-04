@@ -7,3 +7,4 @@ NesMulator.sim
 NesMulator.xpr
 .Xil
 *.code-workspace
+*.vscode
