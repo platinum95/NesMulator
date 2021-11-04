@@ -6,3 +6,4 @@ NesMulator.runs
 NesMulator.sim
 NesMulator.xpr
 .Xil
+*.code-workspace
