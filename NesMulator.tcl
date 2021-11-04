@@ -221,8 +221,10 @@ set obj [get_filesets M6502Core_tb]
 # Add local files from the original project (-no_copy_sources specified)
 set files [list \
  [file normalize "${origin_dir}/src/M6502Core/testbench/M6502_tb.sv" ]\
- [file normalize "${origin_dir}/src/M6502Core/testbench/test_rom1.mem" ]\
  [file normalize "${origin_dir}/src/M6502Core/testbench/alu_tb.sv" ]\
+ [file normalize "${origin_dir}/src/M6502Core/testbench/M6502ModelInterface.sv" ]\
+ [file normalize "${origin_dir}/src/M6502Core/testbench/M6502ModelInterface.cpp" ]\
+ [file normalize "${origin_dir}/src/M6502Core/testbench/6502_functional_test.mem" ]\
 ]
 set added_files [add_files -fileset M6502Core_tb $files]
 
@@ -234,14 +236,21 @@ set file "M6502Core/testbench/M6502_tb.sv"
 set file_obj [get_files -of_objects [get_filesets M6502Core_tb] [list "*$file"]]
 set_property -name "file_type" -value "SystemVerilog" -objects $file_obj
 
-set file "M6502Core/testbench/test_rom1.mem"
-set file_obj [get_files -of_objects [get_filesets M6502Core_tb] [list "*$file"]]
-set_property -name "file_type" -value "Memory File" -objects $file_obj
-
 set file "M6502Core/testbench/alu_tb.sv"
 set file_obj [get_files -of_objects [get_filesets M6502Core_tb] [list "*$file"]]
 set_property -name "file_type" -value "SystemVerilog" -objects $file_obj
 
+set file "M6502Core/testbench/M6502ModelInterface.sv"
+set file_obj [get_files -of_objects [get_filesets M6502Core_tb] [list "*$file"]]
+set_property -name "file_type" -value "SystemVerilog" -objects $file_obj
+
+set file "M6502Core/testbench/M6502ModelInterface.cpp"
+set file_obj [get_files -of_objects [get_filesets M6502Core_tb] [list "*$file"]]
+set_property -name "file_type" -value "CPP" -objects $file_obj
+
+set file "M6502Core/testbench/6502_functional_test.mem"
+set file_obj [get_files -of_objects [get_filesets M6502Core_tb] [list "*$file"]]
+set_property -name "file_type" -value "Memory File" -objects $file_obj
 
 # Set 'M6502Core_tb' fileset properties
 set obj [get_filesets M6502Core_tb]

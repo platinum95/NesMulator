@@ -1,9 +1,0 @@
-C9 69       // CMP #$69 // Subroutine -- Compare A vs magic number $69. Jump to FFFE (error) if not equal
-D0 01       // BNE #$01
-60          // RTS
-4C FE FF    // JMP $FFFE
-
-A9 69       // LDA #$69 // Entry point.... index 8
-20 00 00    // JSR 00 00
-
-4C FF FF    // JMP $FFFF
