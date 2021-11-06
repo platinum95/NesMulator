@@ -123,4 +123,10 @@ typedef enum {
     Access_ReadWrite
 } AccessType;
 
+typedef enum {
+    Index_None,
+    Index_X,
+    Index_Y
+} Index;
+
 endpackage

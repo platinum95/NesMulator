@@ -173,6 +173,7 @@ set obj [get_filesets sources_1]
 set files [list \
  [file normalize "${origin_dir}/src/M6502Core/M6502Defs.sv" ]\
  [file normalize "${origin_dir}/src/M6502Core/alu.sv" ]\
+ [file normalize "${origin_dir}/src/M6502Core/Opcodec.sv" ]\
  [file normalize "${origin_dir}/src/M6502Core/M6502.sv" ]\
 ]
 set added_files [add_files -fileset sources_1 $files]
@@ -186,6 +187,10 @@ set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
 set_property -name "file_type" -value "SystemVerilog" -objects $file_obj
 
 set file "M6502Core/alu.sv"
+set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
+set_property -name "file_type" -value "SystemVerilog" -objects $file_obj
+
+set file "M6502Core/Opcodec.sv"
 set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
 set_property -name "file_type" -value "SystemVerilog" -objects $file_obj
 
@@ -222,6 +227,7 @@ set obj [get_filesets M6502Core_tb]
 set files [list \
  [file normalize "${origin_dir}/src/M6502Core/testbench/M6502_tb.sv" ]\
  [file normalize "${origin_dir}/src/M6502Core/testbench/alu_tb.sv" ]\
+ [file normalize "${origin_dir}/src/M6502Core/testbench/Opcodec_tb.sv" ]\
  [file normalize "${origin_dir}/src/M6502Core/testbench/M6502ModelInterface.sv" ]\
  [file normalize "${origin_dir}/src/M6502Core/testbench/M6502ModelInterface.cpp" ]\
  [file normalize "${origin_dir}/src/M6502Core/testbench/6502_functional_test.mem" ]\
@@ -237,6 +243,10 @@ set file_obj [get_files -of_objects [get_filesets M6502Core_tb] [list "*$file"]]
 set_property -name "file_type" -value "SystemVerilog" -objects $file_obj
 
 set file "M6502Core/testbench/alu_tb.sv"
+set file_obj [get_files -of_objects [get_filesets M6502Core_tb] [list "*$file"]]
+set_property -name "file_type" -value "SystemVerilog" -objects $file_obj
+
+set file "M6502Core/testbench/Opcodec_tb.sv"
 set file_obj [get_files -of_objects [get_filesets M6502Core_tb] [list "*$file"]]
 set_property -name "file_type" -value "SystemVerilog" -objects $file_obj
 

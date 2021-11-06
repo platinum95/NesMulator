@@ -28,6 +28,8 @@
 
 `include "M6502ModelInterface.sv"
 
+import M6502Defs::AddressingMode;
+
 module M6502_tb(
     );
 
@@ -61,14 +63,14 @@ begin
     forever
     begin
         #4;
-        clk = ~clk;
+      //  clk = ~clk;
     end
 end
 
 `define NUM_ROMS 2
 // ROMs, 512 bytes available each
 byte TestROMs[ `NUM_ROMS ][ 0:16'hFFFF ] = '{ default:0 };
-
+AddressingMode a;
 initial
 begin
     // TODO - some kind of loop here to load in automatically
@@ -76,6 +78,9 @@ begin
     $readmemh( "./6502_functional_test.mem", TestROMs[ 1 ] );
     //static int n_File_ID = $fopen( "./6502_functional_test.mem", "rb" );
     //$fread( TestROMs[ 1 ], n_File_ID );
+    #10;
+    m6502.TbSetOpcode( 8'h01 );
+    a = m6502.r_addressingMode;
 end
 
 // Test RAM, 512 bytes
