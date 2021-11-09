@@ -1,5 +1,7 @@
 `timescale 1ns / 1ps
 
+`include "M6502Defs.sv"
+
 import M6502Defs::AddressingMode;
 import M6502Defs::AluOperation;
 import M6502Defs::Operation;
@@ -116,7 +118,8 @@ logic[ 1:0 ] r_stackStateCounter_nxt = 0;
 ******************************/
 AddressingMode r_addressingMode;
 
-logic[ 7:0 ] r_indexingIndex = ( r_index == Index_X ) ? r_X : r_Y; // For ZeroPageIndexed/AbsoluteIndexed
+logic[ 7:0 ] r_indexingIndex;
+assign r_indexingIndex = ( r_index == Index_X ) ? r_X : r_Y; // For ZeroPageIndexed/AbsoluteIndexed
 
 /*******************************
 * ALU
@@ -230,12 +233,15 @@ logic[ 7:0 ] r_workingDataA = 0;
 logic[ 7:0 ] r_workingDataB = 0;
 Index r_index;
 
+Operation r_operation;
+AccessType r_operationAccessType;
+
 Opcodec opcodec(
-    i_opcode( r_OPCODE ),
-    o_operation( r_operation ),
-    o_addressingMode( r_addressingMode ),
-    o_accesType( r_operationAccessType ),
-    o_index( r_index )
+    .i_opcode( r_OPCODE ),
+    .o_operation( r_operation ),
+    .o_addressingMode( r_addressingMode ),
+    .o_accessType( r_operationAccessType ),
+    .o_index( r_index )
 );
 
 // Signal that data address is ready and on the address lines.
@@ -243,7 +249,7 @@ logic r_readReady = 1'b0;
 always_comb
 begin
     r_readReady = 1'b0;
-    case( o_addressingMode )
+    case( r_addressingMode )
         Implied,
         Immediate:
         begin
@@ -324,7 +330,7 @@ begin
         end
 
         WriteBack,
-        WriteFlag,
+        WriteResult,
         StackWrite:
         begin
             r_readWrite = WriteFlag;
@@ -430,7 +436,7 @@ begin
             r_PC_nxt = r_PC + 1;
         end
 
-        if ( r_mainState == StackRead && r_stackStateCounter == 0 )
+        if ( r_mainState == StackRead && r_stackStateCounter == 0 && r_operation != JSR )
         begin
             r_S_nxt = r_S + 1;
         end
@@ -454,7 +460,6 @@ begin
                             2'b00:
                             begin
                                 r_dataOut = r_PC[ 15:8 ];
-                                r_P_nxt[ BREAK_BIT ] = 1'b1;
                             end
 
                             2'b01:
@@ -464,7 +469,8 @@ begin
 
                             2'b10:
                             begin
-                                r_dataOut = r_P;
+                                r_dataOut = { r_P[ 7:6 ], 1'b1, 1'b1, r_P[ 3:0 ] };
+                                r_P_nxt[ INTERRUPT_BIT ] = 1'b1;
                             end
 
                             2'b11:
@@ -587,7 +593,7 @@ begin
                         case( r_stackStateCounter )
                             2'b00:
                             begin
-                                r_dataOut = ( r_operation == PHA ) ? r_A : r_P;
+                                r_dataOut = ( r_operation == PHA ) ? r_A : '{ r_P[ 7:6 ], 1'b1, 1'b1, r_P[ 3:0 ] };
                             end
                             default:
                             begin
@@ -624,6 +630,8 @@ begin
                                 if ( r_operation == PLA )
                                 begin
                                     r_A_nxt = io_data;
+                                    r_P_nxt[ NEGATIVE_BIT ] = io_data[ 7 ];
+                                    r_P_nxt[ ZERO_BIT ] = io_data == 8'h00;
                                 end
                                 else
                                 begin
@@ -651,7 +659,10 @@ begin
                         r_OPERAND1_nxt = io_data;
                     end
 
-                    // TODO - there's a NOP cycle here
+                    StackRead:
+                    begin
+                        // NOP
+                    end
 
                     StackWrite:
                     begin
@@ -686,16 +697,28 @@ begin
 
             JMP:
             begin
-                case ( r_mainState )
-                    ReadOperand1: r_OPERAND1_nxt = io_data;
-                    ReadOperand2: r_PC_nxt = { io_data, r_OPERAND1 };
+                case ( r_addressingMode )
+                    Absolute: begin
+                        case ( r_mainState )
+                            ReadOperand1: r_OPERAND1_nxt = io_data;
+                            ReadOperand2: r_PC_nxt = { io_data, r_OPERAND1 };
+                        endcase
+                    end
+                    AbsoluteIndirect: begin
+                        case ( r_mainState )
+                            ReadOperand1: r_OPERAND1_nxt = io_data;
+                            ReadOperand2: r_OPERAND2_nxt = io_data;
+                            ReadMem1: r_EFFECTIVEL_ADDR_nxt = io_data;
+                            ReadMem2: r_PC_nxt = { io_data, r_EFFECTIVEL_ADDR };
+                        endcase
+                    end
                 endcase
             end
 
             default:
             begin
                 // Get-effective address logic
-                if ( r_addressingMode != Implied && r_addressingMode != Immediate && r_mainState < Read1 )
+                if ( r_addressingMode != Implied && r_addressingMode != Immediate )
                 begin
                     case ( r_mainState )
                         ReadOperand1:
@@ -703,9 +726,12 @@ begin
                             case ( r_addressingMode )
                                 Absolute,
                                 AbsoluteIndexed,
-                                ZeroPage:
+                                ZeroPage,
+                                ZeroPageIndexed:
                                 begin
-                                    r_EFFECTIVEL_ADDR_nxt = io_data;
+                                    r_EFFECTIVEL_ADDR_nxt = io_data; // TODO - remove
+                                    r_OPERAND1_nxt = io_data;
+                                    r_EFFECTIVEH_ADDR_nxt = 8'b0;
                                 end
 
                                 default:
@@ -720,7 +746,8 @@ begin
                             case ( r_addressingMode )
                                 Absolute:
                                 begin
-                                    r_EFFECTIVEH_ADDR_nxt = io_data;
+                                    r_EFFECTIVEH_ADDR_nxt = io_data; // TODO - remove
+                                    r_OPERAND2_nxt = io_data;
                                 end
                                 AbsoluteIndexed:
                                 begin
@@ -738,10 +765,10 @@ begin
 
                         ReadMem1:
                         begin
-                            case ( r_addressingMode )
+                            unique case ( r_addressingMode )
                                 ZeroPageIndexed:
                                 begin
-                                    r_EFFECTIVEL_ADDR_nxt = io_data + r_indexingIndex;
+                                    r_EFFECTIVEL_ADDR_nxt = r_EFFECTIVEL_ADDR + r_indexingIndex;
                                 end
 
                                 IndexedIndirect:
@@ -757,6 +784,11 @@ begin
                                 AbsoluteIndirect:
                                 begin
                                     r_PC_nxt[ 7:0 ] = io_data;
+                                end
+
+                                Absolute:
+                                begin
+                                    r_workingDataA = io_data;
                                 end
 
                                 default:
@@ -827,7 +859,12 @@ begin
                                     r_EFFECTIVEH_ADDR_nxt = r_EFFECTIVEH_ADDR + r_indexerCarry;
                                     r_workingDataA = io_data;
                                 end
-                                
+
+                                ZeroPageIndexed:
+                                begin
+                                    r_workingDataA = io_data;
+                                end
+
                                 default:
                                 begin
                                     Error( "Invalid addressing mode in reg-updating logic" );
@@ -839,8 +876,50 @@ begin
                         begin
                             r_workingDataA = io_data;
                         end
-                    endcase
 
+                        WriteBack:
+                        begin
+                            case ( r_operation )
+                                ASL,
+                                LSR,
+                                ROL,
+                                ROR,
+                                DEC,
+                                INC:
+                                begin
+                                    r_dataOut = l_aluOut;
+                                end
+
+                                default:
+                                begin
+                                    Error( "Invalid operation in WriteBack state" );
+                                end
+                            endcase;
+                        end
+                        WriteResult:
+                        begin
+                            case ( r_operation )
+                                ASL,
+                                LSR,
+                                ROL,
+                                ROR,
+                                DEC,
+                                INC:
+                                begin
+                                    r_dataOut = l_aluOut;
+                                end
+
+                                STA: r_dataOut = r_A;
+                                STX: r_dataOut = r_X;
+                                STY: r_dataOut = r_Y;
+
+                                default:
+                                begin
+                                    Error( "Invalid operation in WriteResult state" );
+                                end
+                            endcase;
+                        end
+                    endcase
                 end
 
                 if ( r_readReady )
@@ -848,9 +927,21 @@ begin
                     // TODO - status register
 
                     case( r_operation )
-                        TYA: r_A_nxt = r_Y;
-                        TXA: r_A_nxt = r_X;
-                        LDA: r_A_nxt = io_data;
+                        TYA: begin
+                            r_A_nxt = r_Y;
+                            r_P_nxt[ NEGATIVE_BIT ] = r_Y[ 7 ];
+                            r_P_nxt[ ZERO_BIT ] = r_Y == 0;
+                        end 
+                        TXA: begin 
+                            r_A_nxt = r_X;
+                            r_P_nxt[ NEGATIVE_BIT ] = r_X[ 7 ];
+                            r_P_nxt[ ZERO_BIT ] = r_X == 0;
+                        end
+                        LDA: begin
+                            r_A_nxt = io_data;
+                            r_P_nxt[ NEGATIVE_BIT ] = io_data[ 7 ];
+                            r_P_nxt[ ZERO_BIT ] = io_data == 0;
+                        end
 
                         ADC,
                         AND,
@@ -878,16 +969,28 @@ begin
                         ROR:
                         begin
                             // Also ALU, but possibly going to mem
-                            if ( r_addressingMode == Implied )
+                            if ( r_addressingMode == Immediate )
                             begin
                                 r_A_nxt = l_aluOut;
                             end
                             r_P_nxt = l_aluStatusOut;
                         end
 
-                        TSX: r_X_nxt = r_S;
-                        TAX: r_X_nxt = r_A;
-                        LDX: r_X_nxt = io_data;
+                        TSX: begin
+                            r_X_nxt = r_S;
+                            r_P_nxt[ NEGATIVE_BIT ] = r_S[ 7 ];
+                            r_P_nxt[ ZERO_BIT ] = r_S == 0;
+                        end
+                        TAX: begin 
+                            r_X_nxt = r_A;
+                            r_P_nxt[ NEGATIVE_BIT ] = r_A[ 7 ];
+                            r_P_nxt[ ZERO_BIT ] = r_A == 0;
+                        end
+                        LDX: begin 
+                            r_X_nxt = io_data;
+                            r_P_nxt[ NEGATIVE_BIT ] = io_data[ 7 ];
+                            r_P_nxt[ ZERO_BIT ] = io_data == 0;
+                        end
                         DEX,
                         INX:
                         begin
@@ -895,8 +998,18 @@ begin
                             r_P_nxt = l_aluStatusOut;
                         end
 
-                        TAY: r_Y_nxt = r_A;
-                        LDY: r_Y_nxt = io_data;
+                        TAY:
+                        begin
+                            r_Y_nxt = r_A;
+                            r_P_nxt[ NEGATIVE_BIT ] = r_A[ 7 ];
+                            r_P_nxt[ ZERO_BIT ] = r_A == 0;
+                        end
+                        LDY: begin
+                            r_Y_nxt = io_data;
+                            r_P_nxt[ NEGATIVE_BIT ] = io_data[ 7 ];
+                            r_P_nxt[ ZERO_BIT ] = io_data == 0;
+                        end
+
                         DEY,
                         INY:
                         begin
@@ -906,13 +1019,13 @@ begin
 
                         TXS: r_S_nxt = r_X;
 
-                        CLC: r_S_nxt[ CARRY_BIT ] = 0;
-                        SEC: r_S_nxt[ CARRY_BIT ] = 1;
-                        CLI: r_S_nxt[ INTERRUPT_BIT ] = 0;
-                        SEI: r_S_nxt[ INTERRUPT_BIT ] = 1;
-                        CLV: r_S_nxt[ OVERFLOW_BIT ] = 0;
-                        CLD: r_S_nxt[ DECIMAL_BIT ] = 0;
-                        SED: r_S_nxt[ DECIMAL_BIT ] = 1;
+                        CLC: r_P_nxt[ CARRY_BIT ] = 0;
+                        SEC: r_P_nxt[ CARRY_BIT ] = 1;
+                        CLI: r_P_nxt[ INTERRUPT_BIT ] = 0;
+                        SEI: r_P_nxt[ INTERRUPT_BIT ] = 1;
+                        CLV: r_P_nxt[ OVERFLOW_BIT ] = 0;
+                        CLD: r_P_nxt[ DECIMAL_BIT ] = 0;
+                        SED: r_P_nxt[ DECIMAL_BIT ] = 1;
 
                         BPL,
                         BMI,
@@ -955,6 +1068,7 @@ begin
         ReadMem1:
         begin
             case ( r_addressingMode )
+                ZeroPage,
                 ZeroPageIndexed,
                 IndexedIndirect,
                 IndirectIndexed:
@@ -1007,6 +1121,11 @@ begin
             o_addr = {  8'h00, r_INDIRECTL_addr + 1'b1 }; // TODO - boundaries for some addressing modes
         end
 
+        Read1:
+        begin
+            o_addr = { r_EFFECTIVEH_ADDR, r_EFFECTIVEL_ADDR };
+        end
+
         WriteBack,
         WriteResult:
         begin
@@ -1037,7 +1156,7 @@ begin
 
         default:
         begin
-            Error( "Invalid operation in output address logic" );
+            Error( "Invalid state in output address logic" );
             o_addr = 0;
         end
     endcase
@@ -1068,7 +1187,7 @@ begin
         begin
             if ( r_operation == JSR )
             begin
-                r_mainState_nxt = StackWrite;
+                r_mainState_nxt = StackRead;
                 r_stackStateCounter_nxt = 0;
             end
             else
@@ -1108,7 +1227,11 @@ begin
                         r_mainState_nxt = ReadOperand2;
                     end
 
-                    ZeroPage,
+                    ZeroPage:
+                    begin
+                        r_mainState_nxt = ( r_operationAccessType == Access_Write ) ? WriteResult : ReadMem1;
+                    end
+
                     ZeroPageIndexed:
                     begin
                         r_mainState_nxt = ReadMem1;
@@ -1133,7 +1256,7 @@ begin
                 Absolute:
                 begin
                     if ( r_operation == JMP ) r_mainState_nxt = Fetch;
-                    else r_mainState_nxt = ( r_operationAccessType == Access_Write ) ? WriteResult : Read1;
+                    else r_mainState_nxt = ( r_operationAccessType == Access_Write ) ? WriteResult : ReadMem1;
                 end
 
                 AbsoluteIndexed:
@@ -1143,7 +1266,7 @@ begin
 
                 AbsoluteIndirect:
                 begin
-                    r_mainState_nxt = ReadIndirect1;
+                    r_mainState_nxt = ReadMem1;
                 end
 
                 Relative:
@@ -1166,13 +1289,15 @@ begin
                 Absolute,
                 ZeroPage:
                 begin
-                    r_mainState_nxt = Fetch;
-                end
-                ZeroPageIndexed:
-                begin
-                    r_mainState_nxt = ReadIndirect1;
+                    r_mainState_nxt = ( r_operationAccessType == Access_Read ) ? Fetch : WriteBack;
                 end
 
+                ZeroPageIndexed:
+                begin
+                    r_mainState_nxt = ( r_operationAccessType == Access_Write ) ? WriteResult : Read1;
+                end
+
+                AbsoluteIndirect,
                 IndexedIndirect,
                 IndirectIndexed:
                 begin
@@ -1182,6 +1307,11 @@ begin
                 AbsoluteIndexed:
                 begin
                     r_mainState_nxt = Read1;
+                end
+
+                AbsoluteIndirect:
+                begin
+                    r_mainState_nxt = ReadMem2;
                 end
 
                 default:
@@ -1200,6 +1330,11 @@ begin
                     r_mainState_nxt = ReadIndirect1;
                 end
 
+                AbsoluteIndirect:
+                begin
+                    r_mainState_nxt = Fetch;
+                end
+
                 default:
                 begin
                     Error( "Invalid addressing mode in next-state logic" );
@@ -1209,14 +1344,12 @@ begin
         ReadIndirect1:
         begin
             case( r_addressingMode )
-                ZeroPageIndexed,
                 IndexedIndirect:
                 begin
                     r_mainState_nxt = Fetch;
                 end
 
                 IndirectIndexed,
-                AbsoluteIndirect,
                 AbsoluteIndexed:
                 begin
                     // TODO - fix addr for IndirectIndexed and AbsoluteIndexed
@@ -1233,7 +1366,6 @@ begin
         begin
             case( r_addressingMode )
                 IndirectIndexed,
-                AbsoluteIndirect,
                 AbsoluteIndexed:
                 begin
                     r_mainState_nxt = Fetch;
@@ -1255,10 +1387,7 @@ begin
                     case ( r_operationAccessType )
                         Access_Read:
                         begin
-                            if ( r_indexerCarry )
-                            begin
-                                r_mainState_nxt = Read2;
-                            end
+                            r_mainState_nxt = ( r_indexerCarry == 1'b1 ) ? Read2 : Fetch;
                         end
                         
                         Access_ReadWrite:
@@ -1344,8 +1473,13 @@ begin
             case ( r_stackStateCounter )
                 2'b00:
                 begin
-                    // Always increments r_S
-                    r_stackStateCounter_nxt = 2'b01;
+                    if ( r_operation == JSR ) begin
+                        r_mainState_nxt = StackWrite;
+                        r_stackStateCounter_nxt = 2'b00;
+                    end
+                    else begin
+                        r_stackStateCounter_nxt = 2'b01;
+                    end
                 end
 
                 2'b01:
@@ -1499,8 +1633,8 @@ begin
         r_A                 <= 8'h00;
         r_X                 <= 8'h00;
         r_Y                 <= 8'h00;
-        r_S                 <= 8'h00;
-        r_P                 <= 8'h00;
+        r_S                 <= 8'hFD;
+        r_P                 <= 8'h34;
         r_PC                <= 16'h0400;
 
         r_OPERAND1          <= 0;
@@ -1558,10 +1692,6 @@ endfunction
 function void Error( string msg );
     $error( $sformatf ( "%s\n%s", msg, GetStateString() ) );
     $fatal( 0 );
-endfunction
-
-function void TbSetOpcode( logic[ 7:0 ] i_opcode );
-    r_OPCODE = i_opcode;
 endfunction
 
 endmodule
