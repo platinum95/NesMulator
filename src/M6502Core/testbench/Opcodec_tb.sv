@@ -1,5 +1,8 @@
 `timescale 1ns / 1ps
 
+`include "Common.sv"
+`include "M6502Defs.sv"
+
 import M6502Defs::*;
 
 module Opcodec_tb;

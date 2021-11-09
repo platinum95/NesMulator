@@ -26,9 +26,11 @@
 //import "DPI-C" function void myFunction4 (input int v1, input int v2, output int o);
 //endpackage
 
-`include "M6502ModelInterface.sv"
+`include "Common.sv"
+`include "../M6502Defs.sv"
 
 import M6502Defs::AddressingMode;
+import Common::CPUState;
 
 module M6502_tb(
     );
@@ -63,72 +65,65 @@ begin
     forever
     begin
         #4;
-      //  clk = ~clk;
+        clk = ~clk;
     end
 end
 
-`define NUM_ROMS 2
-// ROMs, 512 bytes available each
-byte TestROMs[ `NUM_ROMS ][ 0:16'hFFFF ] = '{ default:0 };
-AddressingMode a;
-initial
+int instructionCount = 0;
+
+always @( negedge clk )
 begin
-    // TODO - some kind of loop here to load in automatically
-    //$readmemh( "./test_rom1.mem", TestROMs[ 0 ] );
-    $readmemh( "./6502_functional_test.mem", TestROMs[ 1 ] );
-    //static int n_File_ID = $fopen( "./6502_functional_test.mem", "rb" );
-    //$fread( TestROMs[ 1 ], n_File_ID );
-    #10;
-    m6502.TbSetOpcode( 8'h01 );
-    a = m6502.r_addressingMode;
-end
-
-// Test RAM, 512 bytes
-byte RAM[ 512 ];
-
-int currentRom = 1;
-
-reg[ 7:0 ] l_sendData;
-assign data = rw ? 8'hZZ : l_sendData;
-always_comb
-begin
-    if ( rw == 0 )
-    begin
-        if ( addr == 16'hFFFF )
-        begin
-            // End condition
-            $finish;
-        end
-        else if ( addr == 16'hFFFE )
-        begin
-            $display( "Test ROM jumped to error state" );
-            $finish;
-        end
-        else
-        begin
-            l_sendData = TestROMs[ currentRom ][ addr ];
-        end
+    if ( rst == 1'b1 ) begin
+        CPUState referenceState;
+        modelInterface.Tick( referenceState );
+        ValidateState( GetDutState(), referenceState );
+        instructionCount = instructionCount + 1;
     end
 end
 
-always_ff @( posedge clk )
-begin
-    if ( rw == 1 )
-    begin
-        if ( addr >= 512 && addr < 1024 )
-        begin
-            RAM[ addr - 512 ] <= data;
-        end
-    end
-end
+// Memory Block, 64k bytes
+byte MemoryBlock[ 0:16'hFFFF ] = '{ default:0 };
 
 initial
 begin
     rst = 0;
-    #(8 * 10);
+    $readmemh( "./6502_functional_test.mem", MemoryBlock );
+    #(8 * 10 + 2);
     rst = 1;
-
-    #( 8 * 10 );
 end
+
+assign data = rw ? 8'hZZ : MemoryBlock[ addr ];
+
+always_ff @( posedge clk )
+begin
+    if ( rw == 1 /* && ( addr < 16'h0400 || addr > 16'h3832 ) */ )
+    begin
+        MemoryBlock[ addr ] <= data;
+    end
+end
+
+function CPUState GetDutState();
+    return '{
+        m6502.r_PC,
+        m6502.r_A, m6502.r_X, m6502.r_Y, m6502.r_S,
+        m6502.r_P
+    };
+endfunction
+
+function string GetStateString( CPUState state );
+    return $sformatf( "PC: %0X\nA: %0X\nX: %0X\nY: %0X\nS: %0X\nP: %0X", state.PC, state.A, state.X, state.Y, state.S, state.P );
+endfunction
+
+function void ValidateState( CPUState dutState, CPUState referenceState );
+    if ( dutState.PC != referenceState.PC
+        || dutState.A != referenceState.A
+        || dutState.X != referenceState.X
+        || dutState.Y != referenceState.Y
+        || dutState.S != referenceState.S
+        || dutState.P != referenceState.P ) begin
+        $error( "State mismatch detected on instruction %0d\nDUT State:\n%s\n\nReference State:\n%s", instructionCount, GetStateString( dutState ), GetStateString( referenceState ) );
+        $fatal;
+    end
+endfunction;
 
 endmodule
